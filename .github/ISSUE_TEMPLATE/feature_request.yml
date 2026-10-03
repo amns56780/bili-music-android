@@ -1,0 +1,54 @@
+name: 💡 功能建议
+description: 想要的新功能或改进
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先说**使用场景**，再说你想要的方案——这样我能判断该不该做、怎么做更合适。
+
+        > 不接受的类型：绕过风控 / 破解会员 / 下载付费内容 / 内置音源代理。
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 使用场景
+      description: 你在什么情况下觉得不方便？
+      placeholder: 例如：我经常在通勤路上听合集，想一次性把整个合集下载下来，现在只能一首首点。
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 期望的方案
+      placeholder: 例如：选集页加一个「下载选中」按钮，和「加入歌单」并排。
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 涉及的功能
+      options:
+        - 登录
+        - 歌单导入 / 选集
+        - 播放内核
+        - 后台播放 / 通知
+        - 定时关闭
+        - 离线缓存
+        - 音质
+        - 桌面小组件
+        - 界面 / 适配
+        - 其他
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: 自检
+      options:
+        - label: 我已搜索过现有 Issue，没有重复
+          required: true

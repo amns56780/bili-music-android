@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 先读 README（构建 / 已知限制 / 免责声明）
+    url: https://github.com/amns56780/bili-music-android#readme
+    about: 构建方法、已知限制（音频焦点、国产 ROM 管控、取流 URL 有效期）都写在这里了
+  - name: 🤝 贡献指南（代码约定 / 禁止提交的东西）
+    url: https://github.com/amns56780/bili-music-android/blob/main/CONTRIBUTING.md
+    about: 提 PR 前请先看这份，能省掉很多来回
+  - name: 📦 下载最新 APK
+    url: https://github.com/amns56780/bili-music-android/releases
+    about: 不想自己编译的话，直接下 APK 安装

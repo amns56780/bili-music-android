@@ -1,0 +1,92 @@
+name: 🐞 Bug 反馈
+description: 崩溃、播放失败、界面异常、接口失效等
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请尽量把信息填全，否则很难复现。
+
+        > 🔒 **隐私提醒**：请**不要**贴 `SESSDATA`、Cookie、真实 UID、手机号或抓包得到的取流 URL。
+        > 日志里如果有这些内容，请先打码再贴。取流 URL 只有 120 分钟有效期，贴了也帮不上忙。
+
+  - type: input
+    id: device
+    attributes:
+      label: 设备与系统
+      description: 机型 + Android 版本（设置 → 关于手机）
+      placeholder: 例如：一加 PLC110 / Android 16 (API 36)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: bilimusic 版本
+      description: 设置页最下方或 Release 页面上的版本号
+      placeholder: 例如：v1.0.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 出问题的功能
+      options:
+        - 登录（扫码 / Cookie）
+        - 歌单导入（收藏夹 / 稍后再看 / 投稿 / 合集）
+        - 选集页
+        - 播放（出声、切歌、进度、倍速外）
+        - 后台播放 / 通知栏 / 线控
+        - 定时关闭
+        - 离线缓存 / 下载
+        - 音质选择
+        - 桌面小组件
+        - 界面 / 适配（横屏、字体缩放、深色）
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 一步一步写，能稳定复现最好
+      placeholder: |
+        1. 打开 App，进入「稍后再看」
+        2. 点第 3 首播放
+        3. 切到桌面，约 10 秒后音乐停住
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果 vs 实际结果
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志（可选但很有用）
+      description: |
+        ```
+        adb logcat -d -t 500 | grep -iE "bilimusic|ExoPlayer|PlaybackService"
+        adb shell dumpsys media_session | grep -A5 bilimusic
+        ```
+        ⚠️ 贴之前请删掉任何 Cookie / SESSDATA / 真实 UID。
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: 自检
+      options:
+        - label: 我已确认贴出的内容里没有 SESSDATA / Cookie / 真实账号信息
+          required: true
+        - label: 我已搜索过现有 Issue，没有重复
+          required: true
