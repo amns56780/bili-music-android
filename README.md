@@ -3,7 +3,9 @@
 <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="88" alt="bilimusic 图标">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Android%2026%2B-brightgreen.svg)](#三如何构建)
+[![Release](https://img.shields.io/github/v/release/amns56780/bili-music-android?label=Release&color=blue)](https://github.com/amns56780/bili-music-android/releases/latest)
+[![Download APK](https://img.shields.io/badge/Download-APK%2017.5MB-success.svg)](https://github.com/amns56780/bili-music-android/releases/latest)
+[![Platform](https://img.shields.io/badge/Platform-Android%2026%2B-brightgreen.svg)](#四如何构建)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-blue.svg)](https://kotlinlang.org)
 [![Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-4285F4.svg)](https://developer.android.com/jetpack/compose)
 
@@ -379,4 +381,17 @@ app/src/main/java/com/bilimusic/app/
 > 附加说明（非协议条款，仅为请求）：本项目与哔哩哔哩（Bilibili）官方无任何关系，
 > 使用其非官方公开接口，**仅供个人学习交流，请勿用于任何商业或盈利场景**；
 > 通过本项目播放的音频内容版权归原 UP 主与哔哩哔哩所有。
+
+---
+
+## 九、参与贡献
+
+想提 Issue 或 PR？请先看 **[CONTRIBUTING.md](CONTRIBUTING.md)**（环境要求、代码约定、
+提交前必过的检查、以及**绝对不能提交的东西**）。
+
+- 🐞 [反馈 Bug](https://github.com/amns56780/bili-music-android/issues/new?template=bug_report.yml) —— 模板会提醒你脱敏日志
+- 💡 [提功能建议](https://github.com/amns56780/bili-music-android/issues/new?template=feature_request.yml)
+- 📦 [下载最新 APK](https://github.com/amns56780/bili-music-android/releases/latest)
+
+> 提交前请务必确认：**没有把 `local.properties`、keystore、真实 SESSDATA / Cookie 或抓包取流 URL 提交上去。**
 
