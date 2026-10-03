@@ -68,7 +68,7 @@ class PlayerWidgetRenderTest {
         awaitIdle()
 
         onNode(hasText("未在播放")).assertExists()
-        onNode(hasText("点这里打开「B站音乐」选一首歌")).assertExists()
+        onNode(hasText("点这里打开「bilimusic」选一首歌")).assertExists()
     }
 
     @Test
