@@ -1,0 +1,24 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+/app/build/
+/app/release/
+
+# Kotlin 编译缓存与错误日志
+.kotlin/
+*.log
+
+# 签名文件（请勿提交自己的 keystore）
+*.jks
+*.keystore
+keystore.properties
+
+# 本机验证产物
+_verify/
