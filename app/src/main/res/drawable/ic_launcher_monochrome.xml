@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  BM 图标 · 自适应前景层（字母 BM，按中线圆头描边，笔宽全程等粗）
-  字形路径来自设计稿 android/ic_launcher_foreground.svg：
-    transform="translate(30.1897 35.4946) scale(0.123370)"，已按 66dp 安全圆缩好
+  BM 图标 · 单色层（Android 13+ 主题图标 / 动态取色）
+  系统只取这一层的 alpha 通道再套主题色，所以这里用纯白即可。
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -16,7 +15,7 @@
         android:scaleY="0.123370">
         <path
             android:fillColor="#00000000"
-            android:strokeColor="#111113"
+            android:strokeColor="#FFFFFF"
             android:strokeWidth="38"
             android:strokeLineCap="round"
             android:strokeLineJoin="round"

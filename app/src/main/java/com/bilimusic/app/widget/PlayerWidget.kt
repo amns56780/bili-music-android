@@ -95,7 +95,7 @@ internal fun PlayerWidgetContent(state: PlaybackUiState) {
             )
             Spacer(GlanceModifier.height(4.dp))
             Text(
-                text = "点这里打开「B站音乐」选一首歌",
+                text = "点这里打开「bilimusic」选一首歌",
                 style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp),
             )
             return@Column

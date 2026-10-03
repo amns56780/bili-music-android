@@ -1,9 +1,13 @@
-# B站音乐（BiliMusic）
+# bilimusic（B站音源安卓播放器）
+
+<img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="88" alt="bilimusic 图标">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Android%2026%2B-brightgreen.svg)](#三如何构建)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-blue.svg)](https://kotlinlang.org)
 [![Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-4285F4.svg)](https://developer.android.com/jetpack/compose)
+
+> 应用名：**bilimusic**（包名 `com.bilimusic.app`）· 图标：自绘的 **BM** 字母标（浅灰超椭圆底 + 圆头等粗描边，48px 下仍可辨认；含 Android 13+ 主题图标单色层）
 
 一个**本地自用**的安卓音乐播放器：登录 B 站账号 → 把收藏夹 / 稍后再看 / UP主投稿 / 合集导入成歌单 → **只取音频流**播放，后台稳定不断播。
 

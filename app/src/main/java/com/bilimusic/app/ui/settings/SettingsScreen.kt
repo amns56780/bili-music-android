@@ -159,7 +159,7 @@ fun SettingsScreen(
                     Column {
                         SettingsRow(
                             icon = Icons.Outlined.Info,
-                            title = "关于 B站音乐",
+                            title = "关于 bilimusic",
                             subtitle = "B 站音源本地播放器，只取音频流",
                             onClick = { showAbout = true },
                         )
@@ -216,8 +216,8 @@ fun SettingsScreen(
 
     if (showAbout) {
         InfoDialog(
-            title = "关于 B站音乐",
-            message = "B站音乐是一个本地自用的安卓音乐播放器：\n" +
+            title = "关于 bilimusic",
+            message = "bilimusic 是一个本地自用的安卓音乐播放器：\n" +
                 "登录 B 站账号 → 把收藏夹 / 稍后再看 / 合集导入成歌单 → 只取音频流播放。\n\n" +
                 "• 不存储、不转码、不分发任何音频内容\n" +
                 "• 使用 B 站非官方接口，接口变更可能影响功能\n" +
