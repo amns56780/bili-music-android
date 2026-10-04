@@ -41,13 +41,35 @@ data class Song(
     val collectionKey: String? = null,
     val episodeCount: Int = 0,
     val pageIndex: Int = 1,
+    /** 本地歌曲的文件 URI；B 站曲目为 null */
+    val localUri: String? = null,
 ) {
     val durationText: String
         get() = formatDuration(durationMs)
 
+    /** 是不是本地文件（本地歌不取流、不缓存） */
+    val isLocal: Boolean
+        get() = !localUri.isNullOrBlank()
+
     /** 播放用唯一 id：bvid + cid，MediaItem.mediaId 也用它 */
     val mediaKey: String
         get() = "$bvid-$cid"
+
+    /** 转成写库入参（歌单间复制/移动、本地导入都用它） */
+    fun toDraft(): SongDraft = SongDraft(
+        bvid = bvid,
+        cid = cid,
+        title = title,
+        upperName = upperName,
+        coverUrl = coverUrl,
+        durationMs = durationMs,
+        audioQualityId = audioQualityId,
+        isInvalid = isInvalid,
+        collectionKey = collectionKey,
+        episodeCount = episodeCount,
+        pageIndex = pageIndex,
+        localUri = localUri,
+    )
 }
 
 /** 时长格式化：mm:ss，超过 1 小时用 h:mm:ss */

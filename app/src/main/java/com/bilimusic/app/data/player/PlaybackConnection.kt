@@ -197,6 +197,8 @@ class PlaybackConnection @Inject constructor(
     ) {
         if (songs.isEmpty()) return
         connect()
+        // 用户主动开始新播放：清掉上次遗留的「本曲播完后停止」（正在倒计时的定时不受影响）
+        sleepTimer.onUserStartedNewPlayback()
         scope.launch {
             val mediaController = awaitController() ?: return@launch
             val qualitySetting = AudioQualityOption.fromNameOrAuto(
@@ -253,6 +255,7 @@ class PlaybackConnection @Inject constructor(
     }
 
     fun playItemAt(index: Int) {
+        sleepTimer.onUserStartedNewPlayback()
         scope.launch {
             controller?.let { player ->
                 if (index in 0 until player.mediaItemCount) {

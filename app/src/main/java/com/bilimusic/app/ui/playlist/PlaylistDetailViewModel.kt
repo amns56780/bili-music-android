@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -48,6 +49,15 @@ data class AddSongUiState(
 ) {
     val canSubmit: Boolean get() = !submitting && input.isNotBlank()
 }
+
+/** 歌单间批量搬歌的动作 */
+enum class SongBatchAction { COPY, MOVE }
+
+/** 选择目标歌单的对话框状态 */
+data class BatchTargetUiState(
+    val action: SongBatchAction,
+    val playlists: List<Playlist> = emptyList(),
+)
 
 @HiltViewModel
 class PlaylistDetailViewModel @Inject constructor(
@@ -93,6 +103,88 @@ class PlaylistDetailViewModel @Inject constructor(
 
     private val _addSongState = MutableStateFlow(AddSongUiState())
     val addSongState: StateFlow<AddSongUiState> = _addSongState.asStateFlow()
+
+    // ---------------- 多选 + 歌单间复制/移动 ----------------
+
+    private val _selectionMode = MutableStateFlow(false)
+    val selectionMode: StateFlow<Boolean> = _selectionMode.asStateFlow()
+
+    private val _selectedSongIds = MutableStateFlow<Set<Long>>(emptySet())
+    val selectedSongIds: StateFlow<Set<Long>> = _selectedSongIds.asStateFlow()
+
+    private val _batchTarget = MutableStateFlow<BatchTargetUiState?>(null)
+    val batchTarget: StateFlow<BatchTargetUiState?> = _batchTarget.asStateFlow()
+
+    /** 长按曲目进入多选，并把这一首勾上 */
+    fun enterSelection(songId: Long) {
+        _selectionMode.value = true
+        _selectedSongIds.value = setOf(songId)
+    }
+
+    fun toggleSelection(songId: Long) {
+        val current = _selectedSongIds.value
+        _selectedSongIds.value = if (songId in current) current - songId else current + songId
+    }
+
+    fun selectAllSongs() {
+        _selectedSongIds.value = uiState.value.songs.map { it.id }.toSet()
+    }
+
+    fun invertSelection() {
+        val all = uiState.value.songs.map { it.id }.toSet()
+        _selectedSongIds.value = all - _selectedSongIds.value
+    }
+
+    fun exitSelection() {
+        _selectionMode.value = false
+        _selectedSongIds.value = emptySet()
+    }
+
+    /** 打开「选择目标歌单」对话框（排除当前歌单 —— 复制/移动到自己没意义） */
+    fun openBatchTarget(action: SongBatchAction) {
+        if (_selectedSongIds.value.isEmpty()) {
+            viewModelScope.launch { _events.send(PlaylistDetailEvent.Message("请先选择曲目")) }
+            return
+        }
+        viewModelScope.launch {
+            val candidates = repository.observePlaylists().first().filter { it.id != playlistId }
+            if (candidates.isEmpty()) {
+                _events.send(PlaylistDetailEvent.Message("还没有其他歌单，先去歌单列表新建一个"))
+                return@launch
+            }
+            _batchTarget.value = BatchTargetUiState(action = action, playlists = candidates)
+        }
+    }
+
+    fun closeBatchTarget() {
+        _batchTarget.value = null
+    }
+
+    /** 执行批量复制 / 移动 */
+    fun applyBatchTarget(targetPlaylistId: Long, targetTitle: String) {
+        val target = _batchTarget.value ?: return
+        val ids = _selectedSongIds.value
+        if (ids.isEmpty()) return
+        _batchTarget.value = null
+        viewModelScope.launch {
+            val result = when (target.action) {
+                SongBatchAction.COPY -> repository.copySongsTo(playlistId, targetPlaylistId, ids)
+                SongBatchAction.MOVE -> repository.moveSongsTo(playlistId, targetPlaylistId, ids)
+            }
+            val verb = if (target.action == SongBatchAction.COPY) "复制" else "移动"
+            exitSelection()
+            _events.send(
+                PlaylistDetailEvent.Message(
+                    buildString {
+                        append("已$verb ${result.inserted} 首到「$targetTitle」")
+                        if (result.skippedAsDuplicate > 0) {
+                            append("；${result.skippedAsDuplicate} 首已在目标歌单，跳过重复")
+                        }
+                    },
+                ),
+            )
+        }
+    }
 
     init {
         downloadRepository.syncIfNeeded()

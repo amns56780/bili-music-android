@@ -153,6 +153,22 @@ class SleepTimer @Inject constructor(
         }
     }
 
+    /**
+     * 用户**主动开始一次新的播放**（点歌 / 播放全部 / 随机播放 / 选集播放 / 跳队列项）时调用。
+     *
+     * 只清「等本曲播完」这个遗留标志，**不动正在倒计时的定时**（用户设的 30 分钟应该继续走）。
+     *
+     * 为什么需要它：`waitingForTrackEnd` 会持久化，进程如果在「等待本曲播完」期间被杀，
+     * 这个标志就会留在 DataStore 里；下次用户正常听歌时，只要一首歌自然播完就会触发停止
+     * ——「随机播放听歌，播完一首就莫名停下」就是这么来的（真实踩过的坑）。
+     */
+    fun onUserStartedNewPlayback() {
+        if (_state.value.waitingForTrackEnd) {
+            Log.i(TAG, "用户主动开始新播放 → 清除上次遗留的「本曲播完后停止」")
+            cancelInternal(notice = "已清除上次遗留的定时停止")
+        }
+    }
+
     /** 由 PlaybackService 在创建播放器后调用 */
     fun attach(
         player: Player,
@@ -214,6 +230,20 @@ class SleepTimer @Inject constructor(
         onRefreshNotification?.invoke()
     }
 
+    /**
+     * 仅供测试：把一个「等本曲播完再停」的遗留状态塞进来，用来验证它会被清掉。
+     * 不要在生产代码里调用。
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun forceWaitingForTrackEndForTest() {
+        _state.value = _state.value.copy(
+            enabled = false,
+            remainingMs = 0L,
+            waitingForTrackEnd = true,
+        )
+        scope.launch { playbackPrefs.setSleepTimerWaitingForTrackEnd(true) }
+    }
+
     fun consumeNotice() {
         _state.value = _state.value.copy(notice = null)
     }
@@ -273,21 +303,27 @@ class SleepTimer @Inject constructor(
         onStopPlayback?.invoke()
     }
 
-    /** App/服务被杀后恢复：到期时刻 + 等待状态都从 DataStore 读回来 */
-    private fun restoreFromPrefs() {
+    /**
+     * App/服务被杀后恢复。
+     *
+     * **正在倒计时的定时**会恢复（用户设了 30 分钟，App 被杀后重开应该接着走）；
+     * 但「等本曲播完再停」**绝不跨进程恢复** —— 那条「当前曲」早就不存在了，
+     * 硬恢复只会让用户下次正常听歌时莫名在曲末停住。这里直接清掉这个遗留标志。
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun restoreFromPrefs() {
         scope.launch {
             val deadline = playbackPrefs.sleepTimerDeadlineElapsed.first()
             val waiting = playbackPrefs.sleepTimerWaitingForTrackEnd.first()
             val stopAfter = playbackPrefs.sleepTimerStopAfterCurrent.first()
+            if (waiting) {
+                Log.i(TAG, "忽略并清除上次遗留的「本曲播完后停止」状态")
+                playbackPrefs.setSleepTimerWaitingForTrackEnd(false)
+                playbackPrefs.setSleepTimerDeadlineElapsed(0L)
+                _state.value = SleepTimerState(stopAfterCurrentEnabled = stopAfter)
+                return@launch
+            }
             when {
-                waiting -> {
-                    Log.i(TAG, "恢复定时状态：等本曲播完")
-                    _state.value = SleepTimerState(
-                        waitingForTrackEnd = true,
-                        stopAfterCurrentEnabled = stopAfter,
-                    )
-                }
-
                 deadline > 0L -> {
                     val remain = deadline - SystemClock.elapsedRealtime()
                     if (remain > 0L) {
@@ -300,12 +336,11 @@ class SleepTimer @Inject constructor(
                         )
                         startTicker()
                     } else {
-                        // 过期了：按用户开关决定是否直接停
-                        if (stopAfter) {
-                            _state.value = SleepTimerState(waitingForTrackEnd = true)
-                        } else {
-                            stopNow("定时已到点，停止播放")
-                        }
+                        // 进程被杀期间就过期了：此时没有「当前曲」可言，直接当作定时结束清掉
+                        Log.i(TAG, "上次的定时在进程被杀期间已过期，清除")
+                        playbackPrefs.setSleepTimerDeadlineElapsed(0L)
+                        playbackPrefs.setSleepTimerWaitingForTrackEnd(false)
+                        _state.value = SleepTimerState(stopAfterCurrentEnabled = stopAfter)
                     }
                 }
 

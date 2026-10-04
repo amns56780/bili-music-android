@@ -4,6 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,14 +19,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DownloadDone
 import androidx.compose.material.icons.outlined.DownloadForOffline
+import androidx.compose.material.icons.outlined.DriveFileMove
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.PlaylistAdd
 import androidx.compose.material.icons.outlined.PlaylistPlay
@@ -34,6 +39,7 @@ import androidx.compose.material.icons.outlined.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -48,6 +54,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -73,6 +80,120 @@ import com.bilimusic.app.ui.components.ConfirmDialog
 import com.bilimusic.app.ui.components.EmptyState
 import com.bilimusic.app.ui.components.LoadingState
 import com.bilimusic.app.ui.components.TextInputDialog
+
+/**
+ * 多选模式的底部操作栏：显示已选数量 + 「复制到歌单」「移动到歌单」。
+ * 没选任何曲目时两个按钮置灰（不允许点了没反应）。
+ */
+@Composable
+private fun BatchActionBar(
+    selectedCount: Int,
+    onCopy: () -> Unit,
+    onMove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        tonalElevation = 3.dp,
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(
+                text = "已选 $selectedCount 首",
+                style = MaterialTheme.typography.titleSmall,
+                color = if (selectedCount > 0) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.error
+                },
+            )
+            if (selectedCount == 0) {
+                Text(
+                    text = "请至少选择 1 首",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(
+                    onClick = onCopy,
+                    enabled = selectedCount > 0,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(
+                        Icons.Outlined.ContentCopy,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.size(6.dp))
+                    Text("复制到歌单")
+                }
+                OutlinedButton(
+                    onClick = onMove,
+                    enabled = selectedCount > 0,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(
+                        Icons.Outlined.DriveFileMove,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.size(6.dp))
+                    Text("移动到歌单")
+                }
+            }
+        }
+    }
+}
+
+/** 选择目标歌单（复制/移动的落点） */
+@Composable
+private fun BatchTargetDialog(
+    state: BatchTargetUiState,
+    onPick: (Long, String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val verb = if (state.action == SongBatchAction.COPY) "复制" else "移动"
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("把选中的曲目${verb}到哪个歌单？") },
+        text = {
+            Column {
+                Text(
+                    text = if (state.action == SongBatchAction.MOVE) {
+                        "「移动」会把曲目从当前歌单移除；目标歌单里已存在的会跳过重复。"
+                    } else {
+                        "「复制」不动当前歌单；目标歌单里已存在的会跳过重复。"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                LazyColumn(modifier = Modifier.height(260.dp)) {
+                    items(state.playlists, key = { it.id }) { playlist ->
+                        ListItem(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onPick(playlist.id, playlist.title) },
+                            headlineContent = {
+                                Text(
+                                    text = playlist.title,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                            supportingContent = { Text("${playlist.songCount} 首") },
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        },
+    )
+}
 
 /**
  * FR-9 下载状态指示：未下载（灰下载图标，点了就下载）/ 下载中（进度环）/ 已下载（对勾） / 失败（红图标）
@@ -142,6 +263,9 @@ fun PlaylistDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val downloadStates by viewModel.downloadStates.collectAsStateWithLifecycle()
+    val selectionMode by viewModel.selectionMode.collectAsStateWithLifecycle()
+    val selectedSongIds by viewModel.selectedSongIds.collectAsStateWithLifecycle()
+    val batchTarget by viewModel.batchTarget.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
     var showRenameDialog by remember { mutableStateOf(false) }
@@ -160,7 +284,22 @@ fun PlaylistDetailScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            if (selectionMode) {
+                // 多选模式：顶部变成「已选 n 首」+ 全选/反选
+                TopAppBar(
+                    title = { Text("已选 ${selectedSongIds.size} 首") },
+                    navigationIcon = {
+                        IconButton(onClick = viewModel::exitSelection) {
+                            Icon(Icons.Filled.Close, contentDescription = "退出多选")
+                        }
+                    },
+                    actions = {
+                        TextButton(onClick = viewModel::selectAllSongs) { Text("全选") }
+                        TextButton(onClick = viewModel::invertSelection) { Text("反选") }
+                    },
+                )
+            } else {
+                TopAppBar(
                 title = {
                     Text(
                         text = uiState.playlist?.title ?: "歌单",
@@ -216,6 +355,7 @@ fun PlaylistDetailScreen(
                     }
                 },
             )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
@@ -241,7 +381,8 @@ fun PlaylistDetailScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .widthIn(max = 760.dp),
-                    contentPadding = PaddingValues(bottom = 24.dp),
+                    // 多选时底部有操作栏，留出空间免得最后几首被挡住
+                    contentPadding = PaddingValues(bottom = if (selectionMode) 148.dp else 24.dp),
                 ) {
                     item {
                         PlaylistHeader(
@@ -274,9 +415,16 @@ fun PlaylistDetailScreen(
                                 index = index + 1,
                                 song = song,
                                 downloadInfo = viewModel.downloadStatusOf(song, downloadStates),
+                                selectionMode = selectionMode,
+                                selected = song.id in selectedSongIds,
                                 onClick = {
-                                    if (viewModel.playAt(index)) onOpenPlayer()
+                                    if (selectionMode) {
+                                        viewModel.toggleSelection(song.id)
+                                    } else if (viewModel.playAt(index)) {
+                                        onOpenPlayer()
+                                    }
                                 },
+                                onLongClick = { viewModel.enterSelection(song.id) },
                                 onOpenCollection = {
                                     song.collectionKey?.let(onOpenCollection)
                                 },
@@ -294,7 +442,26 @@ fun PlaylistDetailScreen(
                     }
                 }
             }
+
+            // 多选模式的底部操作栏：批量复制 / 移动到其他歌单
+            if (selectionMode) {
+                BatchActionBar(
+                    selectedCount = selectedSongIds.size,
+                    onCopy = { viewModel.openBatchTarget(SongBatchAction.COPY) },
+                    onMove = { viewModel.openBatchTarget(SongBatchAction.MOVE) },
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
+            }
         }
+    }
+
+    // 歌单间批量复制 / 移动：选择目标歌单
+    batchTarget?.let { target ->
+        BatchTargetDialog(
+            state = target,
+            onPick = { id, title -> viewModel.applyBatchTarget(id, title) },
+            onDismiss = viewModel::closeBatchTarget,
+        )
     }
 
     if (showRenameDialog) {
@@ -478,7 +645,10 @@ private fun SongRow(
     index: Int,
     song: Song,
     downloadInfo: DownloadInfo,
+    selectionMode: Boolean,
+    selected: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onOpenCollection: () -> Unit,
     onDownload: () -> Unit,
     onRemoveDownload: () -> Unit,
@@ -487,7 +657,10 @@ private fun SongRow(
     var menuExpanded by remember { mutableStateOf(false) }
 
     ListItem(
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = Modifier.combinedClickable(
+            onClick = onClick,
+            onLongClick = onLongClick,
+        ),
         headlineContent = {
             Text(
                 text = song.title,
@@ -524,20 +697,28 @@ private fun SongRow(
             }
         },
         leadingContent = {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = MaterialTheme.shapes.small,
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = index.toString(),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            if (selectionMode) {
+                Checkbox(
+                    checked = selected,
+                    onCheckedChange = { onClick() },
+                    modifier = Modifier.size(32.dp),
                 )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            shape = MaterialTheme.shapes.small,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = index.toString(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         },
         trailingContent = {

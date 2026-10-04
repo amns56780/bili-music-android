@@ -52,6 +52,11 @@ data class SongEntity(
     /** 在分P中的序号，从 1 开始 */
     @ColumnInfo(defaultValue = "1")
     val pageIndex: Int = 1,
+    /**
+     * 本地歌曲的文件 URI（如 `content://media/external/audio/media/123`）；
+     * B 站曲目为 null。非空时播放链路直接播本地文件，不走取流与缓存。
+     */
+    val localUri: String? = null,
 )
 
 fun SongEntity.toDomain(): Song = Song(
@@ -70,4 +75,5 @@ fun SongEntity.toDomain(): Song = Song(
     collectionKey = collectionKey,
     episodeCount = episodeCount,
     pageIndex = pageIndex,
+    localUri = localUri,
 )

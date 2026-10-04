@@ -34,7 +34,9 @@ object StorageModule {
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, AppDatabase.NAME)
-            .fallbackToDestructiveMigration()
+            // 用户歌单/缓存都是真实数据，**不能用 fallbackToDestructiveMigration**（升级会清库）。
+            // 每次改表结构请补一条 Migration，宁可启动报错也不要静默丢数据。
+            .addMigrations(AppDatabase.MIGRATION_1_2)
             .build()
 
     @Provides

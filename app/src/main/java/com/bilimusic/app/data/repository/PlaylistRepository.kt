@@ -39,6 +39,20 @@ interface PlaylistRepository {
     suspend fun getSongs(playlistId: Long): List<Song>
     suspend fun getSong(songId: Long): Song?
 
+    /** 把源歌单里选中的曲目复制到目标歌单（重复自动跳过） */
+    suspend fun copySongsTo(
+        sourcePlaylistId: Long,
+        targetPlaylistId: Long,
+        songIds: Set<Long>,
+    ): AddSongsResult
+
+    /** 把源歌单里选中的曲目移动到目标歌单（复制后从源歌单删除） */
+    suspend fun moveSongsTo(
+        sourcePlaylistId: Long,
+        targetPlaylistId: Long,
+        songIds: Set<Long>,
+    ): AddSongsResult
+
     /** 新增曲目；返回 (新增数, 因去重跳过数) */
     suspend fun addSongs(playlistId: Long, drafts: List<SongDraft>): AddSongsResult
 
@@ -147,6 +161,42 @@ class PlaylistRepositoryImpl @Inject constructor(
 
     override suspend fun getSong(songId: Long): Song? = songDao.getById(songId)?.toDomain()
 
+    /**
+     * 把源歌单里选中的曲目**复制**到目标歌单（重复的自动跳过）。
+     * 只搬曲目，不动源歌单。
+     */
+    override suspend fun copySongsTo(
+        sourcePlaylistId: Long,
+        targetPlaylistId: Long,
+        songIds: Set<Long>,
+    ): AddSongsResult {
+        if (songIds.isEmpty()) return AddSongsResult(inserted = 0, skippedAsDuplicate = 0)
+        val selected = songDao.getByPlaylist(sourcePlaylistId)
+            .filter { it.id in songIds }
+            .map { it.toDomain() }
+        if (selected.isEmpty()) return AddSongsResult(inserted = 0, skippedAsDuplicate = 0)
+        return addSongs(targetPlaylistId, selected.map { it.toDraft() })
+    }
+
+    /**
+     * 把源歌单里选中的曲目**移动**到目标歌单：先复制，再从源歌单删除。
+     *
+     * 注意：即使目标里已有同一首（被判为重复而跳过插入），源歌单里这条**照样删除** ——
+     * 「移动」的语义就是「这首不该留在原处了」，用户能在目标歌单里找到它。
+     */
+    override suspend fun moveSongsTo(
+        sourcePlaylistId: Long,
+        targetPlaylistId: Long,
+        songIds: Set<Long>,
+    ): AddSongsResult {
+        if (songIds.isEmpty()) return AddSongsResult(inserted = 0, skippedAsDuplicate = 0)
+        val result = copySongsTo(sourcePlaylistId, targetPlaylistId, songIds)
+        songDao.getByPlaylist(sourcePlaylistId)
+            .filter { it.id in songIds }
+            .forEach { songDao.deleteById(it.id) }
+        return result
+    }
+
     override suspend fun addSongs(playlistId: Long, drafts: List<SongDraft>): AddSongsResult {
         if (drafts.isEmpty()) return AddSongsResult(inserted = 0, skippedAsDuplicate = 0)
         var sortOrder = songDao.maxSortOrder(playlistId) + 1
@@ -170,6 +220,7 @@ class PlaylistRepositoryImpl @Inject constructor(
                     collectionKey = draft.collectionKey,
                     episodeCount = draft.episodeCount,
                     pageIndex = draft.pageIndex,
+                    localUri = draft.localUri,
                 ),
             )
             if (rowId == -1L) {

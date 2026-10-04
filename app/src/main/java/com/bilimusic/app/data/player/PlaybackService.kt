@@ -4,6 +4,8 @@ import android.app.PendingIntent
 import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.ShuffleOrder
@@ -63,11 +65,24 @@ class PlaybackService : MediaSessionService() {
             .build()
 
         // 固定 seed 的洗牌顺序：同一次会话内随机顺序稳定，切歌不会重排（任务书 FR-4）。
-        // MediaController 不支持 setShuffleOrder，所以只能在这里设置。
-        // 注意第一个参数是**长度**不是种子：长度给 0，播放列表变长时 ExoPlayer 会用同一个
-        // Random（seed 固定）扩展出顺序，因此本次会话内顺序随机但稳定。
-        player.setShuffleOrder(
-            ShuffleOrder.DefaultShuffleOrder(0, Random.nextInt().toLong()),
+        // MediaController 不支持 setShuffleOrder，所以只能在服务端设。
+        //
+        // 注意 DefaultShuffleOrder 第一个参数是**长度**不是种子。这里先给 0，并在播放列表
+        // 长度变化时用**同一个 seed** 重建一份长度正确的顺序：长度和列表对不上时
+        // getNextMediaItemIndex() 有可能返回 INDEX_UNSET，表现就是「一首播完就停」。
+        val shuffleSeed = Random.nextInt().toLong()
+        var shuffleOrderLength = 0
+        player.setShuffleOrder(ShuffleOrder.DefaultShuffleOrder(0, shuffleSeed))
+        player.addListener(
+            object : Player.Listener {
+                override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+                    val count = player.mediaItemCount
+                    if (count > 0 && shuffleOrderLength != count) {
+                        shuffleOrderLength = count
+                        player.setShuffleOrder(ShuffleOrder.DefaultShuffleOrder(count, shuffleSeed))
+                    }
+                }
+            },
         )
 
         mediaSession = MediaSession.Builder(this, player)

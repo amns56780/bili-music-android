@@ -17,4 +17,6 @@ data class SongDraft(
     /** 所属合集/分P的总集数 */
     val episodeCount: Int = 0,
     val pageIndex: Int = 1,
+    /** 本地歌曲的文件 URI；B 站曲目为 null */
+    val localUri: String? = null,
 )

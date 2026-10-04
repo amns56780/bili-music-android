@@ -187,4 +187,8 @@ interface PlayerWidgetEntryPoint {
     fun playbackConnection(): PlaybackConnection
 
     fun playlistRepository(): com.bilimusic.app.data.repository.PlaylistRepository
+
+    fun playbackPrefs(): com.bilimusic.app.data.local.prefs.PlaybackPrefs
+
+    fun sleepTimer(): com.bilimusic.app.data.player.SleepTimer
 }
