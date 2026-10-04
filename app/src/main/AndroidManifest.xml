@@ -11,7 +11,14 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
-    <!-- 说明：本 App 只做音频流播放 + 缓存到 getExternalFilesDir，不需要任何存储权限 -->
+    <!-- 说明：音频缓存写在 getExternalFilesDir，不需要存储写权限；
+         下面两条是「本地音乐」读系统媒体库用的（只读音频，不碰照片/视频） -->
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_AUDIO"
+        tools:targetApi="33" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
 
     <application
         android:name=".BiliMusicApplication"

@@ -359,13 +359,15 @@ private fun PlayerControls(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (state.qualityLabel.isNotBlank()) {
+            // 本地文件没有「音质档位」可言，直接显示「本地」
+            val qualityChip = if (state.isLocal) "本地" else state.qualityLabel
+            if (qualityChip.isNotBlank()) {
                 Surface(
                     shape = RoundedCornerShape(6.dp),
                     color = MaterialTheme.colorScheme.secondaryContainer,
                 ) {
                     Text(
-                        text = state.qualityLabel,
+                        text = qualityChip,
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),

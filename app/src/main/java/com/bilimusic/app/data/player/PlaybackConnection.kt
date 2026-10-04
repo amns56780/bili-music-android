@@ -51,6 +51,8 @@ data class PlaybackUiState(
     val durationMs: Long = 0L,
     val playMode: PlayMode = PlayMode.SEQUENTIAL,
     val qualityLabel: String = "",
+    /** 当前这首是不是本地文件（本地不取流、不缓存，UI 上显示「本地」而不是音质档位） */
+    val isLocal: Boolean = false,
     val errorMessage: String? = null,
 ) {
     val indexText: String
@@ -161,6 +163,17 @@ class PlaybackConnection @Inject constructor(
 
         override fun onPlayerError(error: PlaybackException) {
             Log.e(TAG, "播放出错：${error.errorCodeName} ${error.message}")
+            // 本地曲目常见「媒体库有条目但文件已被删除/损坏」：这种坏文件不该让整个队列停下，
+            // 自动跳到下一首继续播（跳到队尾自然结束，不会无限循环）。
+            val mediaController = controller
+            val hasNext = mediaController != null &&
+                mediaController.currentMediaItemIndex < mediaController.mediaItemCount - 1
+            if (hasNext) {
+                Log.w(TAG, "这一首打不开，自动跳到下一首")
+                mediaController.seekToNextMediaItem()
+                mediaController.play()
+                return
+            }
             _state.value = _state.value.copy(errorMessage = describeError(error))
         }
     }
@@ -394,6 +407,9 @@ class PlaybackConnection @Inject constructor(
         val metadata = item?.mediaMetadata
         val ref = item?.localConfiguration?.uri?.let { AudioUri.parse(it) }
         val cached = ref?.let { streamUrlRepository.cached(it.bvid, it.cid) }
+        // 不是 bilimusic:// 虚拟地址的就是本地文件（content:// / file://）
+        val localUri = item?.localConfiguration?.uri
+        val isLocal = localUri != null && localUri.scheme != null && localUri.scheme != "bilimusic"
         val duration = player.duration
         _state.value = PlaybackUiState(
             connected = true,
@@ -411,6 +427,7 @@ class PlaybackConnection @Inject constructor(
             durationMs = if (duration == C.TIME_UNSET || duration <= 0L) 0L else duration,
             playMode = playModeOf(player.repeatMode, player.shuffleModeEnabled),
             qualityLabel = cached?.displayLabel.orEmpty(),
+            isLocal = isLocal,
             errorMessage = _state.value.errorMessage,
         )
 
@@ -462,24 +479,37 @@ class PlaybackConnection @Inject constructor(
     }
 }
 
-/** 曲目 → MediaItem：mediaId 用 bvid-cid，URI 用虚拟地址（播放时才解析真实取流地址） */
-private fun Song.toMediaItem(quality: AudioQualityOption): MediaItem = MediaItem.Builder()
-    .setMediaId(mediaKey)
-    .setUri(AudioUri.build(bvid, cid))
-    .setCustomCacheKey("$bvid-$cid-${quality.qualityId ?: 0}")
-    .setMediaMetadata(
-        MediaMetadata.Builder()
-            .setTitle(title)
-            .setArtist(upperName)
-            .setArtworkUri(coverUrl?.let { Uri.parse(it) })
-            // 队列页要能看出「这是合集的哪几集」
-            .setSubtitle(
-                if (collectionKey != null && episodeCount > 1) {
-                    "合集 · 第 $pageIndex 集 / 共 $episodeCount 集"
-                } else {
-                    null
-                },
-            )
-            .build(),
-    )
-    .build()
+/**
+ * 曲目 → MediaItem。
+ *
+ * - B 站曲目：URI 用虚拟地址（播放时才解析真实取流地址），并写 cacheKey 让离线缓存能命中
+ * - **本地曲目**：URI 直接就是 `content://…`，且**不设 cacheKey**（缓存层会跳过，不白占空间）
+ */
+private fun Song.toMediaItem(quality: AudioQualityOption): MediaItem {
+    val metadata = MediaMetadata.Builder()
+        .setTitle(title)
+        .setArtist(upperName)
+        .setArtworkUri(coverUrl?.let { Uri.parse(it) })
+        // 队列页要能看出「这是合集的哪几集」
+        .setSubtitle(
+            if (collectionKey != null && episodeCount > 1) {
+                "合集 · 第 $pageIndex 集 / 共 $episodeCount 集"
+            } else {
+                null
+            },
+        )
+        .build()
+
+    val builder = MediaItem.Builder()
+        .setMediaId(mediaKey)
+        .setMediaMetadata(metadata)
+
+    return if (isLocal) {
+        builder.setUri(localUri).build()
+    } else {
+        builder
+            .setUri(AudioUri.build(bvid, cid))
+            .setCustomCacheKey("$bvid-$cid-${quality.qualityId ?: 0}")
+            .build()
+    }
+}

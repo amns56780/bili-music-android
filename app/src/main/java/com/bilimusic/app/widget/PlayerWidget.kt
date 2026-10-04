@@ -191,4 +191,6 @@ interface PlayerWidgetEntryPoint {
     fun playbackPrefs(): com.bilimusic.app.data.local.prefs.PlaybackPrefs
 
     fun sleepTimer(): com.bilimusic.app.data.player.SleepTimer
+
+    fun localMusicRepository(): com.bilimusic.app.data.local.LocalMusicRepository
 }

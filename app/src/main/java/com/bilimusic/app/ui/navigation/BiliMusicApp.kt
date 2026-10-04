@@ -40,6 +40,7 @@ import com.bilimusic.app.ui.components.LoadingState
 import com.bilimusic.app.ui.components.MiniPlayer
 import com.bilimusic.app.ui.collection.EpisodeSelectionScreen
 import com.bilimusic.app.ui.login.LoginScreen
+import com.bilimusic.app.ui.local.LocalMusicScreen
 import com.bilimusic.app.ui.player.PlayerScreen
 import com.bilimusic.app.ui.player.PlayerViewModel
 import com.bilimusic.app.ui.playlist.ImportScreen
@@ -194,6 +195,16 @@ private fun MainNavigation(
                         navController.navigate(Routes.playlistDetail(playlistId))
                     },
                     onOpenImport = { navController.navigate(Routes.IMPORT) },
+                    onOpenLocalMusic = { navController.navigate(Routes.LOCAL_MUSIC) },
+                )
+            }
+
+            composable(Routes.LOCAL_MUSIC) {
+                LocalMusicScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenPlayer = {
+                        navController.navigate(Routes.PLAYER) { launchSingleTop = true }
+                    },
                 )
             }
 

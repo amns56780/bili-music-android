@@ -94,6 +94,56 @@ class ExpiredUrlRetryDataSource private constructor(
 }
 
 /**
+ * 按 URI 选择数据源：
+ * - **本地文件**（content:// / file://）走**不缓存**的链 —— 文件本来就在本地，
+ *   再缓存一份纯属白占用户空间
+ * - 其余（虚拟地址 bilimusic:// 与解析后的 http(s)）走**带缓存**的链（FR-9 离线播放）
+ *
+ * 为什么不用 `CacheKeyFactory` 返回 null 来跳过缓存：Media3 1.5 的 CacheDataSource
+ * 拿到 null key 会直接抛 `Source error`（实测踩过），所以改成在数据源这一层分流。
+ */
+class SchemeRoutingDataSource private constructor(
+    private val cachedFactory: DataSource.Factory,
+    private val directFactory: DataSource.Factory,
+) : DataSource {
+
+    private var active: DataSource? = null
+    private val pendingListeners = mutableListOf<TransferListener>()
+
+    override fun open(dataSpec: DataSpec): Long {
+        val scheme = dataSpec.uri.scheme?.lowercase()
+        val isLocal = scheme != null && scheme != "http" && scheme != "https" && scheme != "bilimusic"
+        val delegate = (if (isLocal) directFactory else cachedFactory).createDataSource()
+        pendingListeners.forEach { delegate.addTransferListener(it) }
+        active = delegate
+        return delegate.open(dataSpec)
+    }
+
+    override fun read(buffer: ByteArray, offset: Int, readLength: Int): Int =
+        active?.read(buffer, offset, readLength) ?: -1
+
+    override fun addTransferListener(transferListener: TransferListener) {
+        // ExoPlayer 会在 open 之前调用；具体用哪条链要到 open 才知道，所以先攒着
+        pendingListeners += transferListener
+    }
+
+    override fun getUri(): Uri? = active?.uri
+
+    override fun close() {
+        active?.close()
+        active = null
+    }
+
+    class Factory(
+        private val cachedFactory: DataSource.Factory,
+        private val directFactory: DataSource.Factory,
+    ) : DataSource.Factory {
+        override fun createDataSource(): DataSource =
+            SchemeRoutingDataSource(cachedFactory, directFactory)
+    }
+}
+
+/**
  * 403 / 401（地址过期）允许快速重试，让上层有机会重新取流；
  * 404 / 410 属于永久失效，直接放弃。
  */
@@ -120,13 +170,14 @@ class BiliLoadErrorHandlingPolicy : DefaultLoadErrorHandlingPolicy(3) {
  */
 @Singleton
 class PlayerDataSources @Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
     private val streamUrlRepository: StreamUrlRepository,
     private val cacheManager: PlaybackCacheManager,
 ) {
 
     /** 不带缓存的链（下载时由 DownloadManager 自己套一层 CacheDataSource） */
     fun createUpstream(okHttpClient: okhttp3.OkHttpClient): DataSource.Factory {
-        val upstream = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okHttpClient)
+        val httpFactory = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okHttpClient)
             .setUserAgent(BiliHeaderInterceptor.USER_AGENT)
             .setDefaultRequestProperties(
                 mapOf(
@@ -134,6 +185,10 @@ class PlayerDataSources @Inject constructor(
                     "Origin" to BiliHeaderInterceptor.ORIGIN,
                 ),
             )
+        // 外面套一层 DefaultDataSource：http(s) 继续走 OkHttp（带 Referer 防 403），
+        // content:// / file:// 这些本地 URI 由它自己处理 —— 本地播放器功能靠的就是这一层。
+        val upstream: DataSource.Factory =
+            androidx.media3.datasource.DefaultDataSource.Factory(context, httpFactory)
         val resolving = ResolvingDataSource.Factory(
             upstream,
             BiliAudioResolver(streamUrlRepository),
@@ -143,10 +198,14 @@ class PlayerDataSources @Inject constructor(
         }
     }
 
-    /** 播放用：上游再包一层 CacheDataSource，key 来自 MediaItem.customCacheKey */
-    fun create(okHttpClient: okhttp3.OkHttpClient): DataSource.Factory =
-        androidx.media3.datasource.cache.CacheDataSource.Factory()
-            .setCache(cacheManager.simpleCache)
-            .setUpstreamDataSourceFactory(createUpstream(okHttpClient))
-            .setFlags(androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+    /** 播放用：线上曲目包一层 CacheDataSource（离线可播）；本地文件走不缓存的直连链 */
+    fun create(okHttpClient: okhttp3.OkHttpClient): DataSource.Factory {
+        val direct = createUpstream(okHttpClient)
+        val cached: DataSource.Factory =
+            androidx.media3.datasource.cache.CacheDataSource.Factory()
+                .setCache(cacheManager.simpleCache)
+                .setUpstreamDataSourceFactory(direct)
+                .setFlags(androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        return SchemeRoutingDataSource.Factory(cachedFactory = cached, directFactory = direct)
+    }
 }

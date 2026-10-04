@@ -19,6 +19,9 @@ object Routes {
     /** 全屏播放页（FR-4 / FR-7 页面 6） */
     const val PLAYER = "player"
 
+    /** 本地音乐页：扫描系统媒体库，可直接播放，也能导入成歌单 */
+    const val LOCAL_MUSIC = "local"
+
     /** FR-3 选集页：playlistId + collectionKey（season:{id} 或 pages:{bvid}） */
     const val EPISODE_SELECTION = "collection/{playlistId}/{collectionKey}"
     const val ARG_COLLECTION_KEY = "collectionKey"

@@ -80,6 +80,7 @@ import com.bilimusic.app.ui.components.ConfirmDialog
 import com.bilimusic.app.ui.components.EmptyState
 import com.bilimusic.app.ui.components.LoadingState
 import com.bilimusic.app.ui.components.TextInputDialog
+import com.bilimusic.app.ui.local.LocalBadge
 
 /**
  * 多选模式的底部操作栏：显示已选数量 + 「复制到歌单」「移动到歌单」。
@@ -680,6 +681,9 @@ private fun SongRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (song.isLocal) {
+                    LocalBadge()
+                }
                 if (song.episodeCount > 1) {
                     Text(
                         text = "合集 · 第 ${song.pageIndex} 集 / 共 ${song.episodeCount} 集",

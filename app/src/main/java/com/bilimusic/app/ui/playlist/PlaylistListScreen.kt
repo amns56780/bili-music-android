@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.LibraryMusic
+import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
@@ -62,6 +63,7 @@ import com.bilimusic.app.ui.components.TextInputDialog
 fun PlaylistListScreen(
     onOpenPlaylist: (Long) -> Unit,
     onOpenImport: () -> Unit,
+    onOpenLocalMusic: () -> Unit,
     viewModel: PlaylistListViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -80,6 +82,9 @@ fun PlaylistListScreen(
             TopAppBar(
                 title = { Text("我的歌单") },
                 actions = {
+                    IconButton(onClick = onOpenLocalMusic) {
+                        Icon(Icons.Outlined.LibraryMusic, contentDescription = "本地音乐")
+                    }
                     IconButton(onClick = onOpenImport) {
                         Icon(Icons.Outlined.CloudDownload, contentDescription = "导入")
                     }
