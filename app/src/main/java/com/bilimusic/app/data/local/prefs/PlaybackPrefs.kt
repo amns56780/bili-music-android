@@ -74,6 +74,25 @@ class PlaybackPrefs @Inject constructor(
     suspend fun setSleepTimerWaitingForTrackEnd(value: Boolean) =
         edit { it[KEY_SLEEP_WAITING] = value }
 
+    /**
+     * 保存定时时同时记下「保存那一刻的开机时长」与「开机时刻标记」。
+     *
+     * 为什么需要：定时截止点用的是 `SystemClock.elapsedRealtime()`，而它是**开机以来的毫秒数，重启会归零**。
+     * 只存截止点的话，手机重启后那个数会变成"未来的某个时刻"，App 一启动就把幽灵定时恢复出来，
+     * 几小时后"到点"，表现就是「随机播放着，某首歌放完突然暂停」（真实踩过的坑）。
+     */
+    suspend fun setSleepTimerBootInfo(savedAtElapsed: Long, bootMarker: Long) = edit {
+        it[KEY_SLEEP_SAVED_AT_ELAPSED] = savedAtElapsed
+        it[KEY_SLEEP_BOOT_MARKER] = bootMarker
+    }
+
+    val sleepTimerSavedAtElapsed: Flow<Long> =
+        dataStore.data.map { it[KEY_SLEEP_SAVED_AT_ELAPSED] ?: 0L }
+
+    /** 开机时刻标记 = 墙上时钟 - 开机时长；设备重启后这个值会变 */
+    val sleepTimerBootMarker: Flow<Long> =
+        dataStore.data.map { it[KEY_SLEEP_BOOT_MARKER] ?: 0L }
+
     suspend fun setCacheLimitBytes(bytes: Long) = edit { it[KEY_CACHE_LIMIT] = bytes }
 
     suspend fun setLastPlayedSongId(songId: Long) = edit { it[KEY_LAST_SONG_ID] = songId }
@@ -116,6 +135,8 @@ class PlaybackPrefs @Inject constructor(
         private val KEY_SLEEP_STOP_AFTER = booleanPreferencesKey("sleep_timer_stop_after_current")
         private val KEY_SLEEP_DEADLINE = longPreferencesKey("sleep_timer_deadline_elapsed")
         private val KEY_SLEEP_WAITING = booleanPreferencesKey("sleep_timer_waiting_for_track_end")
+        private val KEY_SLEEP_SAVED_AT_ELAPSED = longPreferencesKey("sleep_timer_saved_at_elapsed")
+        private val KEY_SLEEP_BOOT_MARKER = longPreferencesKey("sleep_timer_boot_marker")
         private val KEY_CACHE_LIMIT = longPreferencesKey("cache_limit_bytes")
         private val KEY_LAST_SONG_ID = longPreferencesKey("last_played_song_id")
         private val KEY_KEEP_NOTIFICATION = booleanPreferencesKey("keep_notification_when_paused")

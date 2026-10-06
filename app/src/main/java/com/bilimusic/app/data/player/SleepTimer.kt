@@ -206,6 +206,11 @@ class SleepTimer @Inject constructor(
             playbackPrefs.setSleepTimerStopAfterCurrent(stopAfterCurrent)
             playbackPrefs.setSleepTimerWaitingForTrackEnd(false)
             playbackPrefs.setSleepTimerDefaultMinutes(safeMinutes)
+            // 记下"这一刻的开机信息"，重启后靠它判断截止点还有没有意义
+            playbackPrefs.setSleepTimerBootInfo(
+                savedAtElapsed = SystemClock.elapsedRealtime(),
+                bootMarker = bootMarker(),
+            )
         }
         startTicker()
         onRefreshNotification?.invoke()
@@ -316,35 +321,52 @@ class SleepTimer @Inject constructor(
             val deadline = playbackPrefs.sleepTimerDeadlineElapsed.first()
             val waiting = playbackPrefs.sleepTimerWaitingForTrackEnd.first()
             val stopAfter = playbackPrefs.sleepTimerStopAfterCurrent.first()
-            if (waiting) {
-                Log.i(TAG, "忽略并清除上次遗留的「本曲播完后停止」状态")
-                playbackPrefs.setSleepTimerWaitingForTrackEnd(false)
+            val savedAtElapsed = playbackPrefs.sleepTimerSavedAtElapsed.first()
+            val savedBootMarker = playbackPrefs.sleepTimerBootMarker.first()
+
+            suspend fun clearStaleTimer(reason: String) {
+                Log.i(TAG, "丢弃上次的定时（$reason）")
+                deadlineElapsedMs = 0L
                 playbackPrefs.setSleepTimerDeadlineElapsed(0L)
+                playbackPrefs.setSleepTimerWaitingForTrackEnd(false)
+                _state.value = SleepTimerState(stopAfterCurrentEnabled = stopAfter)
+            }
+
+            if (waiting) {
+                // 「等本曲播完再停」不跨进程恢复：那条"当前曲"早就不存在了
+                clearStaleTimer("上次遗留的「本曲播完后停止」")
+                return@launch
+            }
+            if (deadline <= 0L) {
                 _state.value = SleepTimerState(stopAfterCurrentEnabled = stopAfter)
                 return@launch
             }
-            when {
-                deadline > 0L -> {
-                    val remain = deadline - SystemClock.elapsedRealtime()
-                    if (remain > 0L) {
-                        Log.i(TAG, "恢复定时：还剩 ${remain / 1000}s")
-                        deadlineElapsedMs = deadline
-                        _state.value = SleepTimerState(
-                            enabled = true,
-                            remainingMs = remain,
-                            stopAfterCurrentEnabled = stopAfter,
-                        )
-                        startTicker()
-                    } else {
-                        // 进程被杀期间就过期了：此时没有「当前曲」可言，直接当作定时结束清掉
-                        Log.i(TAG, "上次的定时在进程被杀期间已过期，清除")
-                        playbackPrefs.setSleepTimerDeadlineElapsed(0L)
-                        playbackPrefs.setSleepTimerWaitingForTrackEnd(false)
-                        _state.value = SleepTimerState(stopAfterCurrentEnabled = stopAfter)
-                    }
-                }
+            if (
+                !canRestoreSleepTimerDeadline(
+                    savedDeadlineElapsed = deadline,
+                    savedAtElapsed = savedAtElapsed,
+                    savedBootMarker = savedBootMarker,
+                )
+            ) {
+                // 设备重启过（或记录来自旧版本）：elapsedRealtime 截止点已经不可信，
+                // 硬恢复会造出一个"幽灵定时"，几小时后让人以为播放莫名暂停
+                clearStaleTimer("设备重启过或记录失效")
+                return@launch
+            }
 
-                else -> _state.value = SleepTimerState(stopAfterCurrentEnabled = stopAfter)
+            val remain = deadline - SystemClock.elapsedRealtime()
+            if (remain > 0L) {
+                Log.i(TAG, "恢复定时：还剩 ${remain / 1000}s")
+                deadlineElapsedMs = deadline
+                _state.value = SleepTimerState(
+                    enabled = true,
+                    remainingMs = remain,
+                    stopAfterCurrentEnabled = stopAfter,
+                )
+                startTicker()
+            } else {
+                // 进程被杀期间就过期了：此时没有「当前曲」可言，直接当作定时结束清掉
+                clearStaleTimer("定时在进程被杀期间已过期")
             }
         }
     }
@@ -352,4 +374,37 @@ class SleepTimer @Inject constructor(
     private companion object {
         const val TAG = "SleepTimer"
     }
+}
+
+/** 开机时刻标记 = 墙上时钟 - 开机时长；设备每次重启这个值都会变 */
+internal fun bootMarker(
+    nowWallMs: Long = System.currentTimeMillis(),
+    nowElapsedMs: Long = SystemClock.elapsedRealtime(),
+): Long = nowWallMs - nowElapsedMs
+
+/**
+ * 判断持久化下来的定时截止点**现在还有没有意义**。
+ *
+ * 截止点用的是 `SystemClock.elapsedRealtime()`（开机以来毫秒数），**重启会归零**。
+ * 只存截止点的话，重启后它会变成"未来某个时刻"，App 一启动就恢复出一个幽灵定时，
+ * 几小时后"到点"→ 设「等本曲播完」→ 下一首歌自然播完就**莫名暂停**。
+ *
+ * 所以两道判断，任一不成立就丢弃这个定时：
+ * 1. 开机时长不能比保存时更小（单调时钟回退 ⇒ 重启过）
+ * 2. 开机时刻标记不能偏离太多（墙钟校正可能造成小偏差，给 [bootToleranceMs] 容差）
+ */
+internal fun canRestoreSleepTimerDeadline(
+    savedDeadlineElapsed: Long,
+    savedAtElapsed: Long,
+    savedBootMarker: Long,
+    nowElapsedMs: Long = SystemClock.elapsedRealtime(),
+    nowWallMs: Long = System.currentTimeMillis(),
+    bootToleranceMs: Long = 10L * 60L * 1000L,
+): Boolean {
+    if (savedDeadlineElapsed <= 0L) return false
+    // 保存时没记开机信息（旧版本数据）→ 保守丢弃，避免幽灵定时
+    if (savedAtElapsed <= 0L || savedBootMarker <= 0L) return false
+    if (nowElapsedMs < savedAtElapsed) return false
+    val nowBootMarker = bootMarker(nowWallMs, nowElapsedMs)
+    return kotlin.math.abs(nowBootMarker - savedBootMarker) <= bootToleranceMs
 }
