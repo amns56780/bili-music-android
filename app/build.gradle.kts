@@ -17,8 +17,8 @@ android {
         applicationId = "com.bilimusic.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
@@ -35,7 +35,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // 鏈」鐩彧鍋氭湰鍦颁晶杞姐€佷笉涓婃灦锛宺elease 鐩存帴鐢?debug 绛惧悕锛岀渷鍘?keystore 绠＄悊鎴愭湰銆?            signingConfig = signingConfigs.getByName("debug")
+            // 本项目只做本地侧载、不上架，release 直接用 debug 签名，省去 keystore 管理成本
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
@@ -81,7 +82,7 @@ ksp {
 }
 
 dependencies {
-    // ---- Compose (BOM 缁熶竴鐗堟湰) ----
+    // ---- Compose（BOM 统一版本） ----
     implementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(platform(libs.androidx.compose.bom))
 
@@ -100,7 +101,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
-    // ---- Media3锛氭挱鏀惧唴鏍?+ MediaSession + 绂荤嚎缂撳瓨鏁版嵁婧?----
+    // ---- Media3：播放内核 + MediaSession + 离线缓存数据源 ----
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.exoplayer.dash)
     implementation(libs.androidx.media3.session)
@@ -117,7 +118,7 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
-    // ---- 缃戠粶 ----
+    // ---- 网络 ----
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
     implementation(libs.retrofit)
@@ -125,17 +126,17 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
 
-    // ---- 鏈湴瀛樺偍 / 鍔犲瘑 ----
+    // ---- 本地存储 / 加密 ----
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.security.crypto)
 
-    // ---- 鍥剧墖 / 浜岀淮鐮?/ 妗岄潰灏忕粍浠?----
+    // ---- 图片 / 二维码 / 桌面小组件 ----
     implementation(libs.coil.compose)
     implementation(libs.zxing.core)
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)
 
-    // ---- 娴嬭瘯 ----
+    // ---- 测试 ----
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
