@@ -121,7 +121,8 @@ internal fun PlayerWidgetContent(state: PlaybackUiState) {
             text = buildString {
                 append(state.indexText)
                 if (state.qualityLabel.isNotBlank()) append(" · ${state.qualityLabel}")
-                if (state.playMode != PlayMode.SEQUENTIAL) {
+                // 只在"非默认"模式下显示（默认是列表循环，不用占地方）
+                if (state.playMode == PlayMode.SHUFFLE || state.playMode == PlayMode.REPEAT_ONE) {
                     append(" · ${state.playMode.displayName}")
                 }
             },

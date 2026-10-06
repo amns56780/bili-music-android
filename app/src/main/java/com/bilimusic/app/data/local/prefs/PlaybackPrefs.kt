@@ -104,7 +104,8 @@ class PlaybackPrefs @Inject constructor(
     )
 
     companion object {
-        const val DEFAULT_PLAY_MODE = "SEQUENTIAL"
+        /** 默认播放模式：列表循环（整单放完自动接着放，不会莫名停） */
+        const val DEFAULT_PLAY_MODE = "REPEAT_ALL"
         const val DEFAULT_QUALITY = "AUTO"
         const val DEFAULT_SLEEP_MINUTES = 30
         const val DEFAULT_CACHE_LIMIT_BYTES = 2L * 1024 * 1024 * 1024

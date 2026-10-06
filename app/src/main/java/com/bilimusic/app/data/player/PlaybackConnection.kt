@@ -49,7 +49,7 @@ data class PlaybackUiState(
     val queueSize: Int = 0,
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
-    val playMode: PlayMode = PlayMode.SEQUENTIAL,
+    val playMode: PlayMode = PlayMode.DEFAULT,
     val qualityLabel: String = "",
     /** 当前这首是不是本地文件（本地不取流、不缓存，UI 上显示「本地」而不是音质档位） */
     val isLocal: Boolean = false,
@@ -194,6 +194,13 @@ class PlaybackConnection @Inject constructor(
                 }
                 controller = mediaController
                 mediaController.addListener(listener)
+                // 恢复上次保存的播放模式（首次安装是「列表循环」），让 UI 一进来就显示正确的模式
+                scope.launch {
+                    applyPlayMode(
+                        mediaController,
+                        PlayMode.fromNameOrRepeatAll(playbackPrefs.playMode.first()),
+                    )
+                }
                 publish(mediaController)
                 startTicker()
                 Log.i(TAG, "已连接到 PlaybackService")
@@ -202,7 +209,14 @@ class PlaybackConnection @Inject constructor(
         )
     }
 
-    /** 用整个歌单建队列并从 startIndex 开始播 */
+    /**
+     * 用整个歌单建队列并从 startIndex 开始播。
+     *
+     * 播放模式的处理：
+     * - `shuffle = true`（歌单页的「随机播放」按钮）→ 强制切到随机，并记住
+     * - `shuffle = false`（播放全部 / 点某一首 / 选集播放）→ **沿用当前保存的模式**，
+     *   不再像以前那样硬写成「顺序播放」——否则用户选了列表循环，一点播放全部就被改回去了
+     */
     fun playSongs(
         songs: List<Song>,
         startIndex: Int,
@@ -225,11 +239,25 @@ class PlaybackConnection @Inject constructor(
             mediaController.setMediaItems(items, index, 0L)
             // 洗牌顺序由服务端在创建播放器时用固定 seed 设好（MediaController 不支持 setShuffleOrder），
             // 这里只切开关，保证同一次会话内顺序稳定、不会每切一次歌就重排。
-            mediaController.shuffleModeEnabled = shuffle
-            mediaController.repeatMode = Player.REPEAT_MODE_OFF
+            val mode = if (shuffle) {
+                PlayMode.SHUFFLE
+            } else {
+                PlayMode.fromNameOrRepeatAll(playbackPrefs.playMode.first())
+            }
+            applyPlayMode(mediaController, mode)
             mediaController.prepare()
             mediaController.play()
-            playbackPrefs.setPlayMode(if (shuffle) PlayMode.SHUFFLE.name else PlayMode.SEQUENTIAL.name)
+            playbackPrefs.setPlayMode(mode.name)
+        }
+    }
+
+    /** 把播放模式同时应用到播放器与偏好（两处必须一致，UI 读的是播放器状态） */
+    private suspend fun applyPlayMode(mediaController: MediaController, mode: PlayMode) {
+        mediaController.shuffleModeEnabled = mode == PlayMode.SHUFFLE
+        mediaController.repeatMode = when (mode) {
+            PlayMode.SEQUENTIAL, PlayMode.SHUFFLE -> Player.REPEAT_MODE_OFF
+            PlayMode.REPEAT_ALL -> Player.REPEAT_MODE_ALL
+            PlayMode.REPEAT_ONE -> Player.REPEAT_MODE_ONE
         }
     }
 
@@ -281,14 +309,19 @@ class PlaybackConnection @Inject constructor(
 
     fun setPlayMode(mode: PlayMode) {
         scope.launch {
-            val mediaController = controller ?: return@launch
-            mediaController.shuffleModeEnabled = mode == PlayMode.SHUFFLE
-            mediaController.repeatMode = when (mode) {
-                PlayMode.SEQUENTIAL, PlayMode.SHUFFLE -> Player.REPEAT_MODE_OFF
-                PlayMode.REPEAT_ALL -> Player.REPEAT_MODE_ALL
-                PlayMode.REPEAT_ONE -> Player.REPEAT_MODE_ONE
-            }
+            // 先落盘：即使此刻没连上播放服务，用户的模式选择也不能丢
             playbackPrefs.setPlayMode(mode.name)
+            val mediaController = controller
+            if (mediaController == null) {
+                // 服务刚断/还没连上：顺手重连，连上后 connect() 会应用保存的模式
+                Log.i(TAG, "设置播放模式时未连接，先重连：${mode.displayName}")
+                connect()
+                _notice.value = "播放模式：${mode.displayName}"
+                return@launch
+            }
+            applyPlayMode(mediaController, mode)
+            // 图标比较接近，切完给一句明确反馈，避免"到底切没切"的疑惑
+            _notice.value = "播放模式：${mode.displayName}"
         }
     }
 
@@ -383,9 +416,14 @@ class PlaybackConnection @Inject constructor(
                 val mediaController = controller
                 if (mediaController != null && !mediaController.isConnected) {
                     // 服务被系统回收或已停止：UI 不能继续显示「正在播放」的旧状态
-                    Log.w(TAG, "MediaController 已断开，重置播放状态")
+                    Log.w(TAG, "MediaController 已断开，重置状态并尝试重连")
                     resetState()
-                    break
+                    // 不能 break：退出循环后即使重新连上也不会再刷新状态（UI 会冻住）。
+                    // 也不能放着不管：断连后 UI 就再也控制不了播放了，所以这里主动重连，
+                    // connect() 成功后会用新的 ticker 接替这个循环。
+                    connect()
+                    delay(TICK_MS)
+                    continue
                 }
                 mediaController?.let { publish(it) }
                 delay(TICK_MS)

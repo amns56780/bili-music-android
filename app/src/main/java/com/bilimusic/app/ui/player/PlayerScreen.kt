@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.automirrored.outlined.PlaylistPlay
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.ExpandMore
@@ -297,17 +298,19 @@ private fun PlayerControls(
         ) {
             IconButton(onClick = viewModel::cyclePlayMode) {
                 Icon(
+                    // 四种模式图标必须能一眼区分：
+                    // 顺序播放 = 列表+播放箭头；列表循环 = 环形箭头；单曲循环 = 环形箭头带 1；随机 = 交叉箭头
                     imageVector = when (state.playMode) {
-                        PlayMode.SEQUENTIAL -> Icons.Outlined.Repeat
+                        PlayMode.SEQUENTIAL -> Icons.AutoMirrored.Outlined.PlaylistPlay
                         PlayMode.REPEAT_ALL -> Icons.Outlined.Repeat
                         PlayMode.REPEAT_ONE -> Icons.Outlined.RepeatOne
                         PlayMode.SHUFFLE -> Icons.Outlined.Shuffle
                     },
                     contentDescription = "播放模式：${state.playMode.displayName}",
-                    tint = if (state.playMode == PlayMode.SEQUENTIAL) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        MaterialTheme.colorScheme.primary
+                    tint = when (state.playMode) {
+                        // 顺序播放是"默认/无循环"状态，用弱一点的颜色；其余三种是高亮
+                        PlayMode.SEQUENTIAL -> MaterialTheme.colorScheme.onSurfaceVariant
+                        else -> MaterialTheme.colorScheme.primary
                     },
                 )
             }
