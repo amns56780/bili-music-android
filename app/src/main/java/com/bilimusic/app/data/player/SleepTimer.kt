@@ -332,13 +332,21 @@ class SleepTimer @Inject constructor(
                 _state.value = SleepTimerState(stopAfterCurrentEnabled = stopAfter)
             }
 
+            // 「等本曲播完再停」绝不跨进程恢复：那条"当前曲"早就不存在了。
+            // 这里**无条件清掉持久化标志**，不依赖刚读到的值 —— 只要它在库里，
+            // 下次听歌到曲末就会莫名其妙停住（真实踩过的坑）。
             if (waiting) {
-                // 「等本曲播完再停」不跨进程恢复：那条"当前曲"早就不存在了
-                clearStaleTimer("上次遗留的「本曲播完后停止」")
-                return@launch
+                Log.i(TAG, "忽略并清除上次遗留的「本曲播完后停止」状态")
             }
+            playbackPrefs.setSleepTimerWaitingForTrackEnd(false)
+
             if (deadline <= 0L) {
                 _state.value = SleepTimerState(stopAfterCurrentEnabled = stopAfter)
+                return@launch
+            }
+            if (waiting) {
+                // 遗留状态同时把截止点清掉：那一刻的"当前曲"已不存在，倒计时也一并作废
+                clearStaleTimer("上次遗留的「本曲播完后停止」")
                 return@launch
             }
             if (
